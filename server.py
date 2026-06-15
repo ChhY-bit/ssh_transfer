@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-YCH Transfer Server — HTTP file transfer service.
+SSH Transfer Server — HTTP file transfer service.
 Run this on the remote server to receive and send files.
 
 Usage:
@@ -323,7 +323,7 @@ class _ThreadingServer(ThreadingMixIn, HTTPServer):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='YCH Transfer Server')
+    parser = argparse.ArgumentParser(description='SSH Transfer Server')
     parser.add_argument('--port', type=int, default=9090)
     parser.add_argument('--host', default='0.0.0.0')
     parser.add_argument('--token', required=True)
@@ -332,7 +332,7 @@ def main():
     TransferHandler.token = args.token
     srv = _ThreadingServer((args.host, args.port), TransferHandler)
 
-    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] YCH Transfer Server")
+    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] SSH Transfer Server")
     print(f"  Listening:  {args.host}:{args.port}")
     print(f"  Token:      {args.token}")
     print(f"  PID:        {os.getpid()}")

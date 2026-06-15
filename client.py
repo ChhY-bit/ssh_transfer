@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-YCH Transfer Client — push / pull files and directories over HTTP.
+SSH Transfer Client — push / pull files and directories over HTTP.
 
 Can be used as a library (import `push`, `pull`, `shutdown_server`)
 or as a CLI tool (see `python client.py --help`).
@@ -412,7 +412,7 @@ def _check_response(conn):
 
 def _cli():
     import argparse
-    p = argparse.ArgumentParser(description='YCH Transfer Client')
+    p = argparse.ArgumentParser(description='SSH Transfer Client')
     sp = p.add_subparsers(dest='cmd')
 
     # push

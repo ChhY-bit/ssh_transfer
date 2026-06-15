@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-YCH Transfer — SFTP-based file transfer (push / pull).
+SSH Transfer — SFTP-based file transfer (push / pull).
 
 Replaces the HTTP+tunnel approach.  Uses paramiko SFTP directly over
 the existing SSH connection.  No extra server process, no port forwarding.
@@ -251,7 +251,7 @@ def _cli():
     import argparse
     import paramiko
 
-    p = argparse.ArgumentParser(description='YCH SFTP Transfer Client')
+    p = argparse.ArgumentParser(description='SSH SFTP Transfer Client')
     sp = p.add_subparsers(dest='cmd')
 
     def add_common(parser):

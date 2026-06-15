@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-YCH Transfer SSH Manager — deploy and control the remote server via SSH.
+SSH Transfer SSH Manager — deploy and control the remote server via SSH.
 
 Uses paramiko for cross-platform SSH (password or key auth).
 
@@ -8,7 +8,7 @@ Usage:
     from ssh_manager import SSHManager
 
     ssh = SSHManager('192.168.1.100', 22, 'root', 'password')
-    ssh.upload_server()          # SFTP server.py → /tmp/ych_server.py
+    ssh.upload_server()          # SFTP server.py → /tmp/ssh_server.py
     ssh.start_server(9090, 'tok')
     # ... do transfers ...
     ssh.stop_server()
@@ -27,11 +27,11 @@ import paramiko
 
 # Path to server.py (same directory as this file)
 _SERVER_PY = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'server.py')
-_REMOTE_SERVER_PATH = '/tmp/ych_transfer_server.py'
+_REMOTE_SERVER_PATH = '/tmp/ssh_transfer_server.py'
 
 
 class SSHManager:
-    """Manages the remote YCH Transfer server over SSH."""
+    """Manages the remote SSH Transfer server over SSH."""
 
     def __init__(self, host, port=22, username='root', password=None, key_file=None):
         self.host = host
@@ -188,7 +188,7 @@ class SSHManager:
         self.stop_server(port=port)
         time.sleep(0.5)
 
-        token = token or 'ych_default'
+        token = token or 'ssh_default'
 
         # Detect available Python interpreter
         python_bin = self._detect_python()
@@ -196,7 +196,7 @@ class SSHManager:
         cmd = (
             f'nohup {python_bin} -u {_REMOTE_SERVER_PATH} '
             f'--host {host} --port {port} --token {token} '
-            f'> /tmp/ych_server.log 2>&1 & echo $!'
+            f'> /tmp/ssh_server.log 2>&1 & echo $!'
         )
         print(f'[SSH] Starting server: {cmd}')
         stdin, stdout, stderr = self._client.exec_command(cmd)
@@ -273,7 +273,7 @@ class SSHManager:
         # 1. pkill by script path
         _run(f'pkill -f {_REMOTE_SERVER_PATH} 2>/dev/null; echo ok')
         # 2. pkill by pattern
-        _run(f'pkill -f ych_transfer_server 2>/dev/null; echo ok')
+        _run(f'pkill -f ssh_transfer_server 2>/dev/null; echo ok')
         # 3. kill by port — extract PID from ss, then kill
         if port:
             pid = _run(
@@ -318,7 +318,7 @@ class SSHManager:
         """Return the last N lines of the server log."""
         if not self._client:
             return ''
-        cmd = f'tail -n {lines} /tmp/ych_server.log 2>/dev/null || echo "(no log)"'
+        cmd = f'tail -n {lines} /tmp/ssh_server.log 2>/dev/null || echo "(no log)"'
         stdin, stdout, stderr = self._client.exec_command(cmd)
         return stdout.read().decode()
 
@@ -409,7 +409,7 @@ def _pipe(src, dst):
 
 if __name__ == '__main__':
     import argparse
-    p = argparse.ArgumentParser(description='YCH Transfer SSH Manager (test)')
+    p = argparse.ArgumentParser(description='SSH Transfer SSH Manager (test)')
     p.add_argument('--host', required=True)
     p.add_argument('--port', type=int, default=22)
     p.add_argument('--user', required=True)

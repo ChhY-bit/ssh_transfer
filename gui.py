@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-YCH Transfer GUI — cross-platform tkinter interface for SFTP file push/pull.
+SSH Transfer GUI — cross-platform tkinter interface for SFTP file push/pull.
 
 Launch:
     python gui.py
@@ -35,7 +35,7 @@ class InterruptedError(Exception):
 # Connection history
 # ---------------------------------------------------------------------------
 
-_HISTORY_FILE = Path.home() / '.ych_transfer_history.json'
+_HISTORY_FILE = Path.home() / '.ssh_transfer_history.json'
 _MAX_HISTORY = 10
 
 
@@ -68,9 +68,9 @@ class _History:
         self._save()
 
     def last(self):
-        h = self.data.get('hosts', [''])[0]
-        u = self.data.get('ssh_users', [''])[0]
-        p = self.data.get('ssh_ports', ['22'])[0]
+        h = (self.data.get('hosts') or [''])[0]
+        u = (self.data.get('ssh_users') or [''])[0]
+        p = (self.data.get('ssh_ports') or ['22'])[0]
         return h, u, p
 
     def values_for(self, key):
@@ -113,7 +113,7 @@ class _LocalBrowser:
         mid = ttk.Frame(self._win)
         mid.pack(fill='both', expand=True, padx=8, pady=4)
 
-        self._listbox = tk.Listbox(mid, font=('Consolas', 10))
+        self._listbox = tk.Listbox(mid, font=('monospace', 10))
         self._listbox.pack(side='left', fill='both', expand=True)
         self._listbox.bind('<Double-1>', self._on_doubleclick)
 
@@ -251,7 +251,7 @@ class _RemoteBrowser:
         mid = ttk.Frame(self._win)
         mid.pack(fill='both', expand=True, padx=8, pady=4)
 
-        self._listbox = tk.Listbox(mid, font=('Consolas', 10))
+        self._listbox = tk.Listbox(mid, font=('monospace', 10))
         self._listbox.pack(side='left', fill='both', expand=True)
         self._listbox.bind('<Double-1>', self._on_doubleclick)
 
@@ -363,10 +363,10 @@ def _fmt_size_static(n):
 # Main Application
 # ---------------------------------------------------------------------------
 
-class YchTransferApp:
+class SshTransferApp:
     def __init__(self, root):
         self.root = root
-        self.root.title('YCH Transfer — SFTP 跨平台数据收发')
+        self.root.title('SSH Transfer — SFTP 跨平台数据收发')
         self.root.geometry('720x580')
         self.root.minsize(600, 500)
 
@@ -480,7 +480,7 @@ class YchTransferApp:
         f = ttk.Labelframe(self.root, text='日志', padding=4)
         f.pack(fill='both', expand=True, padx=8, pady=(0, 8))
 
-        self._log_text = tk.Text(f, height=8, state='disabled', wrap='word', font=('Consolas', 9))
+        self._log_text = tk.Text(f, height=8, state='disabled', wrap='word', font=('monospace', 9))
         self._log_text.pack(fill='both', expand=True)
 
         scroll = ttk.Scrollbar(self._log_text, command=self._log_text.yview)
@@ -706,7 +706,7 @@ class YchTransferApp:
 
 def main():
     root = tk.Tk()
-    YchTransferApp(root)
+    SshTransferApp(root)
     root.mainloop()
 
 
