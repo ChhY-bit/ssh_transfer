@@ -15,32 +15,25 @@
 - Python 3.10+
 - SSH 服务器端需开启 SFTP 子系统（Linux 默认开启）
 
-## 安装步骤
+## 快速开始
 
-### 程序下载
-
-```bash
-git clone <repo-url> && cd ssh_transfer
-```
-> 以下两种方式 **任选一种** 安装：
-### 方式1 - pip 安装
-
-创建虚拟环境（推荐）：
+### 拉取源码
 
 ```bash
-python3 -m venv venv
-source venv/bin/activate
+git clone https://github.com/ChhY-bit/ssh_transfer.git && cd ssh_transfer
 ```
 
-> Windows 下激活命令为：`venv\Scripts\activate`
+### 安装依赖
 
-安装依赖：
+| 包 | 用途 | 备注 |
+|---|---|---|
+| `paramiko >= 3.0.0` | SSH / SFTP 连接 | 必装 |
+| `tkinter` | GUI 界面 | Python 自带 |
+| `xfonts-utils` | Linux 中文字体自动注册 | Ubuntu 桌面版已预装 |
 
-```bash
-pip install -r requirements.txt
-```
+> 以下两种方式 **任选一种** ：
 
-### 方式2 - conda 安装
+#### 方式1 - conda 安装
 
 ```bash
 conda env create -f environment.yml
@@ -49,20 +42,30 @@ conda activate ssh_transfer
 
 > conda 环境下的 tkinter 可能缺少中文字体，但 GUI 启动时会自动注册捆绑字体，无需额外操作。如遇字体问题，参见 [Linux 中文字体](#linux-中文字体)。
 
-### 依赖项
+#### 方式2 - pip 安装
 
-| 包 | 用途 | 备注 |
-|---|---|---|
-| `paramiko >= 3.0.0` | SSH / SFTP 连接 | 必装 |
-| `tkinter` | GUI 界面 | Python 自带 |
-| `xfonts-utils` | Linux 中文字体自动注册 | Ubuntu 桌面版已预装 |
-
-## 使用说明
-
-启动 GUI：
+（可选）创建虚拟环境：
 
 ```bash
-python gui.py
+python3 -m venv venv
+source venv/bin/activate
+```
+
+> Windows 下激活命令为：`venv\Scripts\activate`
+
+安装：
+
+```bash
+pip install -r requirements.txt
+```
+
+
+### 开始使用
+
+启动 GUI（在`ssh_transfer/`目录下）：
+
+```bash
+python3 gui.py
 ```
 
 操作步骤：
