@@ -16,6 +16,7 @@ import sys
 import threading
 import time
 import tkinter as tk
+import tkinter.font as tkfont
 from pathlib import Path
 from tkinter import messagebox, ttk
 
@@ -37,6 +38,37 @@ class InterruptedError(Exception):
 
 _HISTORY_FILE = Path.home() / '.ssh_transfer_history.json'
 _MAX_HISTORY = 10
+
+
+def _setup_tk_fonts(root):
+    """Configure all tkinter named fonts to use a CJK-capable family."""
+    # Priority list of CJK-capable font family names that tkinter recognises.
+    # `fc-list` can find fonts that tkinter cannot use — always query tkinter.
+    candidates = [
+        'song ti',          # Linux (most common)
+        'fangsong ti',      # Linux
+        'Microsoft YaHei',  # Windows
+        'SimHei',           # Windows
+        'SimSun',           # Windows
+        'PingFang SC',      # macOS
+        'Heiti SC',         # macOS
+    ]
+    try:
+        families = set(root.tk.call('font', 'families'))
+    except Exception:
+        families = set()
+
+    cjk_family = 'song ti'  # safe default
+    for f in candidates:
+        if f in families:
+            cjk_family = f
+            break
+
+    for name in ('TkDefaultFont', 'TkTextFont', 'TkFixedFont', 'TkMenuFont', 'TkHeadingFont'):
+        try:
+            tkfont.nametofont(name).configure(family=cjk_family)
+        except Exception:
+            pass
 
 
 class _History:
@@ -113,7 +145,7 @@ class _LocalBrowser:
         mid = ttk.Frame(self._win)
         mid.pack(fill='both', expand=True, padx=8, pady=4)
 
-        self._listbox = tk.Listbox(mid, font=('monospace', 10))
+        self._listbox = tk.Listbox(mid, font='TkFixedFont')
         self._listbox.pack(side='left', fill='both', expand=True)
         self._listbox.bind('<Double-1>', self._on_doubleclick)
 
@@ -251,7 +283,7 @@ class _RemoteBrowser:
         mid = ttk.Frame(self._win)
         mid.pack(fill='both', expand=True, padx=8, pady=4)
 
-        self._listbox = tk.Listbox(mid, font=('monospace', 10))
+        self._listbox = tk.Listbox(mid, font='TkFixedFont')
         self._listbox.pack(side='left', fill='both', expand=True)
         self._listbox.bind('<Double-1>', self._on_doubleclick)
 
@@ -366,6 +398,7 @@ def _fmt_size_static(n):
 class SshTransferApp:
     def __init__(self, root):
         self.root = root
+        _setup_tk_fonts(root)
         self.root.title('SSH Transfer — SFTP 跨平台数据收发')
         self.root.geometry('720x580')
         self.root.minsize(600, 500)
@@ -480,7 +513,7 @@ class SshTransferApp:
         f = ttk.Labelframe(self.root, text='日志', padding=4)
         f.pack(fill='both', expand=True, padx=8, pady=(0, 8))
 
-        self._log_text = tk.Text(f, height=8, state='disabled', wrap='word', font=('monospace', 9))
+        self._log_text = tk.Text(f, height=8, state='disabled', wrap='word', font='TkFixedFont')
         self._log_text.pack(fill='both', expand=True)
 
         scroll = ttk.Scrollbar(self._log_text, command=self._log_text.yview)
