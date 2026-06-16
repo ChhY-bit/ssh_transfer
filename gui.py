@@ -12,6 +12,8 @@ Requires:
 
 import json
 import os
+import shutil
+import subprocess
 import sys
 import threading
 import time
@@ -40,35 +42,161 @@ _HISTORY_FILE = Path.home() / '.ssh_transfer_history.json'
 _MAX_HISTORY = 10
 
 
+# ---------------------------------------------------------------------------
+# Font setup — detect / register CJK-capable font for tkinter
+# ---------------------------------------------------------------------------
+
+# Tracks the X11 font directory we registered (for cleanup on exit).
+_registered_font_dir = None
+
+
 def _setup_tk_fonts(root):
-    """Configure all tkinter named fonts to use a CJK-capable family."""
-    # Priority list of CJK-capable font family names that tkinter recognises.
-    # `fc-list` can find fonts that tkinter cannot use — always query tkinter.
-    candidates = [
-        'song ti',          # Linux (most common)
-        'fangsong ti',      # Linux
-        'Microsoft YaHei',  # Windows
-        'SimHei',           # Windows
-        'SimSun',           # Windows
-        'PingFang SC',      # macOS
-        'Heiti SC',         # macOS
+    """Configure all tkinter named fonts to use a CJK-capable family.
+
+    On Linux, tkinter's font name resolution relies on the legacy X11 core font
+    system — even though rendering uses Xft/fontconfig.  This function detects a
+    suitable font; if none is available it registers a bundled modern CJK font
+    at runtime via ``mkfontscale`` + ``xset +fp``.
+    """
+    # Tier 1 — modern CJK fonts we actually *want* to use.
+    preferred = [
+        'droid sans fallback',  # Bundled font (self-registered on Linux)
+        'Microsoft YaHei',      # Windows
+        'SimHei',               # Windows
+        'PingFang SC',          # macOS
+        'Heiti SC',             # macOS
     ]
+    # Tier 2 — X11 core CJK fonts that are always present on Linux but look
+    # dated.  Only used when registration fails.
+    fallback = [
+        'song ti',
+        'fangsong ti',
+    ]
+
     try:
         families = set(root.tk.call('font', 'families'))
     except Exception:
         families = set()
 
-    cjk_family = 'song ti'  # safe default
-    for f in candidates:
+    cjk_family = None
+    for f in preferred:
         if f in families:
             cjk_family = f
             break
 
-    for name in ('TkDefaultFont', 'TkTextFont', 'TkFixedFont', 'TkMenuFont', 'TkHeadingFont'):
+    # On Linux, if no preferred font is available, register the bundled font.
+    if cjk_family is None and sys.platform.startswith('linux'):
+        registered = _register_bundled_font()
+        if registered:
+            try:
+                families = set(root.tk.call('font', 'families'))
+            except Exception:
+                families = set()
+            for f in preferred:
+                if f in families:
+                    cjk_family = f
+                    break
+
+    # Fall back to X11 core fonts if everything else failed.
+    if cjk_family is None:
+        for f in fallback:
+            if f in families:
+                cjk_family = f
+                break
+
+    # Absolute last resort.
+    if cjk_family is None:
+        cjk_family = 'song ti'
+
+    for name in ('TkDefaultFont', 'TkTextFont', 'TkFixedFont', 'TkMenuFont',
+                 'TkHeadingFont'):
         try:
             tkfont.nametofont(name).configure(family=cjk_family)
         except Exception:
             pass
+
+
+def _register_bundled_font():
+    """Register the bundled CJK font with the X11 core font system.
+
+    Returns the font family name on success, ``None`` on failure.
+    Only meaningful on Linux.
+    """
+    global _registered_font_dir
+
+    bundled = os.path.join(_HERE, 'assets', 'fonts', 'DroidSansFallbackFull.ttf')
+    if not os.path.exists(bundled):
+        return None
+
+    font_dir = os.path.join(str(Path.home()), '.ssh_transfer', 'fonts')
+    os.makedirs(font_dir, exist_ok=True)
+
+    dest = os.path.join(font_dir, os.path.basename(bundled))
+    if not os.path.exists(dest):
+        try:
+            shutil.copy2(bundled, dest)
+        except OSError:
+            return None
+
+    # Generate X11 font metadata (fonts.dir / fonts.scale).
+    try:
+        subprocess.run(['mkfontscale', font_dir],
+                       check=True, capture_output=True, timeout=10)
+        subprocess.run(['mkfontdir', font_dir],
+                       check=True, capture_output=True, timeout=10)
+    except Exception:
+        return None
+
+    # Add to the X server font path.
+    try:
+        subprocess.run(['xset', '+fp', font_dir],
+                       check=True, capture_output=True, timeout=10)
+        subprocess.run(['xset', 'fp', 'rehash'],
+                       check=True, capture_output=True, timeout=10)
+    except Exception:
+        return None
+
+    _registered_font_dir = font_dir
+
+    # Parse fonts.dir to get the family name that X11 will expose to tkinter.
+    # Line format:  filename<space>XLFD
+    # XLFD format:  -foundry-family-weight-slant-...-registry-encoding
+    fonts_dir_file = os.path.join(font_dir, 'fonts.dir')
+    try:
+        with open(fonts_dir_file) as fh:
+            for line in fh:
+                line = line.strip()
+                if not line or line[0].isdigit():
+                    continue
+                # Locate the XLFD — it starts with "-" after the filename.
+                idx = line.find(' -')
+                if idx < 0:
+                    continue
+                xlfd = line[idx + 1:]  # skip the space
+                # Parse family from XLFD fields:  -foundry-family-weight-...
+                fields = xlfd.split('-')
+                if len(fields) >= 3:
+                    # fields[0]='', fields[1]=foundry, fields[2]=family
+                    return fields[2]
+    except Exception:
+        pass
+
+    return None
+
+
+def _unregister_bundled_font():
+    """Remove our font directory from the X11 font path (best-effort)."""
+    global _registered_font_dir
+    if _registered_font_dir is None:
+        return
+    try:
+        subprocess.run(['xset', '-fp', _registered_font_dir],
+                       capture_output=True, timeout=5)
+        subprocess.run(['xset', 'fp', 'rehash'],
+                       capture_output=True, timeout=5)
+    except Exception:
+        pass
+    _registered_font_dir = None
 
 
 class _History:
@@ -731,6 +859,7 @@ class SshTransferApp:
             except Exception:
                 pass
         self.root.destroy()
+        _unregister_bundled_font()
 
 
 # ---------------------------------------------------------------------------
