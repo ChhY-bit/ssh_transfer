@@ -196,13 +196,25 @@ class _Progress:
         self.cb = callback
         self.label = label
         self._start = time.time()
-        self._done = 0
-        self._last_done = 0
+        self._done = 0          # accumulated bytes across all files so far
+        self._offset = 0        # bytes from previously completed files
+        self._last_n = 0        # last raw n_done value from paramiko
         self._last_ts = self._start
 
     def update(self, n_done, _=None):
-        """Called by paramiko callback with (bytes_done_so_far, total_bytes)."""
-        self._done = n_done
+        """Called by paramiko callback with (bytes_done_so_far, total_bytes).
+
+        When transferring a directory, the same _Progress instance is reused
+        across multiple sftp.put()/get() calls.  Paramiko reports *per-file*
+        n_done (0 → file_n_size each time), so we detect a file boundary when
+        n_done drops and accumulate the previous file's bytes into an offset.
+        """
+        # Detect file boundary: n_done reset → previous file completed
+        if n_done < self._last_n:
+            self._offset += self._last_n
+        self._last_n = n_done
+        self._done = self._offset + n_done
+
         now = time.time()
         if self.cb and (now - self._last_ts >= 0.1 or self._done >= self.total):
             elapsed = now - self._start
