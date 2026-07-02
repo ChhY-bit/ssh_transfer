@@ -4,11 +4,14 @@
 
 ## 功能
 
-- **图形界面** — 操作直观，支持本地和远程文件浏览
+- **图形界面 (GUI)** — tkinter 界面，操作直观，支持本地和远程文件浏览
+- **终端界面 (TUI)** — 基于 Textual 的终端界面，无需桌面环境，headless 服务器可用
 - **SFTP 直连** — 通过 SSH 连接直接传输，无需额外端口或服务端进程
-- **连接记忆** — 自动记住最近使用的 IP、端口、用户名
+- **连接记忆** — 自动记住最近使用的 IP、端口、用户名（GUI 和 TUI 共享历史）
 - **传输进度** — 实时显示进度条、速度和剩余时间
 - **跨平台** — Windows / macOS / Linux 均可运行
+
+> 技术架构详见 [DOCUMENT.md](DOCUMENT.md)。
 
 ---
 
@@ -32,7 +35,8 @@ git clone https://github.com/ChhY-bit/ssh_transfer.git && cd ssh_transfer
 | 包 | 用途 | 备注 |
 |---|---|---|
 | `paramiko >= 3.0.0` | SSH / SFTP 连接 | 必装 |
-| `tkinter` | GUI 界面 | Python 自带 |
+| `textual >= 2.0.0` | TUI 终端界面 | 推荐安装（headless 环境必备） |
+| `tkinter` | GUI 图形界面 | Python 自带 |
 | `xfonts-utils` | Linux 中文字体自动注册 | Ubuntu 桌面版已预装 |
 
 > 以下两种方式 **任选一种** ：
@@ -66,6 +70,8 @@ pip install -r requirements.txt
 
 ### 开始使用
 
+#### GUI 模式（桌面环境）
+
 启动 GUI（在`ssh_transfer/`目录下）：
 
 ```bash
@@ -79,7 +85,53 @@ python3 gui.py
 3. 填写本地路径和远程路径（可点击「浏览…」选择）
 4. 点击 **开始传输**，等待进度条完成
 
+#### TUI 模式（终端环境 / headless 服务器）⭐
+
+专为**无图形桌面**的远程服务器、WSL、SSH 会话设计，操作与 GUI 一样直观：
+
+```bash
+python3 tui.py
+```
+
+界面布局与 GUI 对标：
+
+- **左侧面板**：SSH 连接配置（IP、端口、用户名、密码）+ 连接/断开按钮 + 状态提示灯
+- **右侧面板**：传输方向选择 + 本地/远程路径输入 + 浏览按钮 + 进度条 + 开始/取消
+- **底部面板**：实时日志滚动区域
+
+快捷键：
+
+| 快捷键 | 操作 |
+|--------|------|
+| `F5` | 开始传输 |
+| `F9` | 浏览本地文件 |
+| `F10` | 浏览远程文件 |
+| `Ctrl+Q` | 退出 |
+| `Tab` | 焦点切换 |
+| `Enter` | 确认选择 |
+
+> TUI 模式与 GUI 模式**共享连接历史**（`~/.ssh_transfer_history.json`），切换使用无需重新填写。
+
 > 连接成功后会自动记住本次的 IP、端口和用户名，下次启动自动填入。
+
+> TUI 与 GUI 的架构对比、控件映射、线程模型详见 [DOCUMENT.md § TUI vs GUI 双界面架构](DOCUMENT.md#tui-vs-gui-双界面架构)。
+
+---
+
+### 自动更新（推荐）
+
+在服务器上部署后，使用内置的 `update.py` 一键同步 GitHub 最新版：
+
+```bash
+python update.py              # 拉取并应用最新版本
+python update.py --check      # 仅检查是否有更新
+python update.py --deps       # 更新后同步更新 pip 依赖
+python update.py --force      # 丢弃本地修改后强制更新
+```
+
+> 更新前会自动检查工作区是否干净，有未提交的修改时会拒绝更新（除非 `--force`）。环境检测与更新流程详见 [DOCUMENT.md § update.py](DOCUMENT.md#update.py--自动更新脚本)。
+
+---
 
 ---
 
@@ -88,8 +140,10 @@ python3 gui.py
 ```
 ssh_transfer/
 ├── gui.py               # tkinter GUI 图形界面
+├── tui.py               # Textual TUI 终端界面（新增）
 ├── sftp_transfer.py     # SFTP 传输核心
 ├── ssh_manager.py       # SSH 连接管理
+├── history.py           # 连接历史缓存（GUI / TUI 共享）
 ├── server.py            # HTTP 服务端（高级模式）
 ├── client.py            # HTTP 客户端（高级模式）
 ├── assets/fonts/        # 捆绑的 CJK 字体
@@ -140,11 +194,39 @@ GUI 在 Linux 上启动时会自动检测并注册中文字体。如果界面中
 
 ## 更多信息
 
-- 技术架构、API 参考、命令行模式详见 [`DOCUMENT.md`](DOCUMENT.md)
+技术文档 [`DOCUMENT.md`](DOCUMENT.md) 涵盖：
+
+- [架构概览](DOCUMENT.md#架构概览) — 整体分层架构图、SFTP 与 HTTP 双通道对比
+- [tui.py 模块详解](DOCUMENT.md#tui.py--textual-终端界面) — 消息驱动架构、CSS 布局、键盘快捷键
+- [TUI vs GUI 双界面架构](DOCUMENT.md#tui-vs-gui-双界面架构) — 控件对应表、线程模型对比、技术选型
+- [update.py 自动更新](DOCUMENT.md#update.py--自动更新脚本) — 更新流程、环境检测策略
+- [数据流](DOCUMENT.md#数据流) — GUI、TUI、HTTP 三种模式的数据流详解
 
 ---
 
 ## 更新日志
+
+### v1.3 (2026-07-02)
+
+- **修复** 目录传输进度追踪 Bug：小于 32KB 的文件在进度条中会被遗漏计数
+  - 根因：`_Progress` 用启发式 `n_done < _last_n` 检测文件边界，小文件跟大文件时失效
+  - 改为显式 `next_file()` 方法，由调用方基于已知文件大小精确累积
+- **修复** TUI 文件浏览弹窗因 `dock` + `align: center middle` 导致目录树不可见
+- **新增** TUI 文件浏览弹窗导航按钮：根目录、上一级、刷新
+- **新增** TUI 文件浏览 `Backspace` 快捷键返回上级目录
+- **修复** TUI RadioButton 圆形被方框截断的样式问题
+- **新增** GUI 文件浏览顶部工具栏「上一级」按钮
+- **修复** TUI 路径输入框 + 浏览按钮行高度过小
+
+### v1.2 (2026-07-02)
+
+- **新增** TUI 终端界面（`tui.py`），基于 Textual 框架
+- 无图形桌面的 headless 服务器可直接在终端中使用，操作体验对标 GUI
+- 支持键盘快捷键（F5 开始传输、F9/F10 浏览文件、Ctrl+Q 退出）
+- 支持远程文件懒加载浏览、传输进度实时显示、取消传输
+- **新增** 自动更新脚本（`update.py`），服务器上一键同步 GitHub 最新版
+- 提取连接历史模块（`history.py`），GUI 和 TUI 共享 `~/.ssh_transfer_history.json`
+- Textual 依赖同步加入 conda 环境配置（`environment.yml`）
 
 ### v1.1 (2026-06-21)
 

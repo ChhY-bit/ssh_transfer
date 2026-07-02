@@ -104,6 +104,7 @@ def _push_dir(sftp, local_dir, remote_dir, on_progress):
         remote = os.path.join(remote_dir, rel_path).replace('\\', '/')
         _ensure_remote_dir(sftp, os.path.dirname(remote))
         sftp.put(local, remote, callback=prog.update)
+        prog.next_file()          # account for completed file exactly
 
     prog.flush()
 
@@ -120,6 +121,7 @@ def _pull_dir(sftp, remote_dir, local_dir, on_progress):
         local = os.path.join(local_dir, rel_path)
         os.makedirs(os.path.dirname(local) or '.', exist_ok=True)
         sftp.get(remote, local, callback=prog.update)
+        prog.next_file()          # account for completed file exactly
 
     prog.flush()
 
@@ -191,30 +193,49 @@ def _ensure_remote_dir(sftp, path):
 # ---------------------------------------------------------------------------
 
 class _Progress:
+    """Tracks transfer progress across one or more files.
+
+    For single-file transfers the caller just feeds ``update()`` and ends
+    with ``flush()`` — no extra book-keeping needed.
+
+    For *directory* transfers the caller MUST call ``next_file()`` after
+    every ``sftp.put()`` / ``sftp.get()`` so that completed-file bytes are
+    accounted for *exactly*, regardless of chunk sizes.
+    """
+
     def __init__(self, total, callback, label=''):
         self.total = total
         self.cb = callback
         self.label = label
         self._start = time.time()
-        self._done = 0          # accumulated bytes across all files so far
-        self._offset = 0        # bytes from previously completed files
-        self._last_n = 0        # last raw n_done value from paramiko
+        self._done = 0            # total bytes transferred so far
+        self._file_offset = 0     # bytes from fully-completed files
+        self._current_n = 0       # n_done value for the *current* file
         self._last_ts = self._start
 
     def update(self, n_done, _=None):
-        """Called by paramiko callback with (bytes_done_so_far, total_bytes).
+        """Called by paramiko with (bytes_done_so_far_for_this_file, file_size)."""
+        self._current_n = n_done
+        self._done = self._file_offset + n_done
+        self._report()
 
-        When transferring a directory, the same _Progress instance is reused
-        across multiple sftp.put()/get() calls.  Paramiko reports *per-file*
-        n_done (0 → file_n_size each time), so we detect a file boundary when
-        n_done drops and accumulate the previous file's bytes into an offset.
-        """
-        # Detect file boundary: n_done reset → previous file completed
-        if n_done < self._last_n:
-            self._offset += self._last_n
-        self._last_n = n_done
-        self._done = self._offset + n_done
+    def next_file(self):
+        """Mark the current file as complete and advance to the next one."""
+        self._file_offset += self._current_n
+        self._current_n = 0
+        self._done = self._file_offset
 
+    def flush(self):
+        """Finalise: account for the last file and force a progress update."""
+        self._file_offset += self._current_n
+        self._current_n = 0
+        self._done = self._file_offset
+        if self.cb:
+            self.cb(self._done, self.total, 0, 0, self.label)
+
+    # -- internal ---------------------------------------------------------
+
+    def _report(self):
         now = time.time()
         if self.cb and (now - self._last_ts >= 0.1 or self._done >= self.total):
             elapsed = now - self._start
@@ -222,11 +243,6 @@ class _Progress:
             eta = (self.total - self._done) / speed if speed > 0 else 0
             self.cb(self._done, self.total, speed, eta, self.label)
             self._last_ts = now
-
-    def flush(self):
-        """Force a final progress update."""
-        if self.cb:
-            self.cb(self._done, self.total, 0, 0, self.label)
 
 
 # ---------------------------------------------------------------------------

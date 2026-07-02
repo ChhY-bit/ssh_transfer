@@ -10,7 +10,6 @@ Requires:
     - paramiko (pip install paramiko)
 """
 
-import json
 import os
 import shutil
 import subprocess
@@ -38,8 +37,7 @@ class InterruptedError(Exception):
 # Connection history
 # ---------------------------------------------------------------------------
 
-_HISTORY_FILE = Path.home() / '.ssh_transfer_history.json'
-_MAX_HISTORY = 10
+from history import _History
 
 
 # ---------------------------------------------------------------------------
@@ -199,42 +197,6 @@ def _unregister_bundled_font():
     _registered_font_dir = None
 
 
-class _History:
-    def __init__(self):
-        self.data = {'hosts': [], 'ssh_users': [], 'ssh_ports': []}
-        self._load()
-
-    def _load(self):
-        try:
-            if _HISTORY_FILE.exists():
-                self.data = json.loads(_HISTORY_FILE.read_text())
-        except Exception:
-            pass
-
-    def _save(self):
-        try:
-            _HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
-            _HISTORY_FILE.write_text(json.dumps(self.data, ensure_ascii=False, indent=2))
-        except Exception:
-            pass
-
-    def record(self, host, ssh_user, ssh_port):
-        for key, val in [('hosts', host), ('ssh_users', ssh_user), ('ssh_ports', str(ssh_port))]:
-            lst = self.data.setdefault(key, [])
-            if val in lst:
-                lst.remove(val)
-            lst.insert(0, val)
-            lst[:] = lst[:_MAX_HISTORY]
-        self._save()
-
-    def last(self):
-        h = (self.data.get('hosts') or [''])[0]
-        u = (self.data.get('ssh_users') or [''])[0]
-        p = (self.data.get('ssh_ports') or ['22'])[0]
-        return h, u, p
-
-    def values_for(self, key):
-        return self.data.get(key, [])
 
 
 # ---------------------------------------------------------------------------
@@ -267,6 +229,7 @@ class _LocalBrowser:
         path_entry.pack(side='left', fill='x', expand=True, padx=4)
         path_entry.bind('<Return>', lambda e: self._navigate(self._path_var.get()))
         ttk.Button(top, text='跳转', command=lambda: self._navigate(self._path_var.get())).pack(side='left')
+        ttk.Button(top, text='上一级', command=lambda: self._navigate(os.path.dirname(self._cwd))).pack(side='left', padx=2)
         ttk.Button(top, text='主目录', command=self._go_home).pack(side='left', padx=2)
         ttk.Button(top, text='根目录', command=lambda: self._navigate('/')).pack(side='left')
 
@@ -405,6 +368,7 @@ class _RemoteBrowser:
         path_entry.pack(side='left', fill='x', expand=True, padx=4)
         path_entry.bind('<Return>', lambda e: self._navigate(self._path_var.get()))
         ttk.Button(top, text='跳转', command=lambda: self._navigate(self._path_var.get())).pack(side='left')
+        ttk.Button(top, text='上一级', command=lambda: self._navigate(os.path.dirname(self._cwd))).pack(side='left', padx=2)
         ttk.Button(top, text='主目录', command=self._go_home).pack(side='left', padx=2)
         ttk.Button(top, text='根目录', command=lambda: self._navigate('/')).pack(side='left')
 

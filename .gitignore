@@ -11,6 +11,7 @@ ENV/
 
 # Conda
 .conda/
+condaenv.*.requirements.txt
 
 # IDE
 .idea/
