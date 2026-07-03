@@ -41,13 +41,22 @@ from textual.widgets import (
     Input,
     Label,
     ProgressBar,
-    RadioButton,
     RadioSet,
     RichLog,
     Select,
     Static,
     Tree,
 )
+from textual.widgets._radio_button import RadioButton as _RadioButton
+
+
+# ---- Clean circle-only RadioButton (no block-char frames) ------------------
+
+class RadioButton(_RadioButton):
+    """RadioButton that renders just a circle, without block-char borders."""
+
+    BUTTON_LEFT = " "
+    BUTTON_RIGHT = " "
 
 from history import _History
 from sftp_transfer import fmt_eta as _fmt_eta
@@ -645,16 +654,19 @@ class SshTransferTUI(App):
         border: none;
         background: transparent;
         height: auto;
-        min-height: 1;
     }
 
-    RadioButton Toggle {
-        border: none;
+    RadioButton > .toggle--button {
         background: transparent;
-        padding: 0 1;
+    }
+
+    RadioButton.-on > .toggle--button {
+        color: $text-success;
+        background: transparent;
     }
 
     RadioButton:focus {
+        border: none;
         text-style: bold;
     }
     """

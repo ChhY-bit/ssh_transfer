@@ -210,6 +210,14 @@ GUI 在 Linux 上启动时会自动检测并注册中文字体。如果界面中
 
 ## 更新日志
 
+### v1.6 (2026-07-03)
+
+- **修复** TUI RadioButton 圆形指示器被 `▐▌` 方块字符和灰色面板背景包裹，视觉上像"镂空方框"
+  - 自定义 RadioButton 子类替换 `BUTTON_LEFT` / `BUTTON_RIGHT` 为空格
+  - 修正 CSS 选择器：用 `.toggle--button` 组件类替代无效的 `Toggle` widget 选择器
+  - 移除按钮区 `$panel` 背景，消除灰色方块残影
+- **修正** RadioButton 焦点态 `border: tall` 覆盖，防止边框切圆
+
 ### v1.5 (2026-07-03)
 
 - **新增** `bump.py` 独立版本号管理脚本，职责与 `update.py` 分离
