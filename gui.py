@@ -2,6 +2,8 @@
 """
 SSH Transfer GUI — cross-platform tkinter interface for SFTP file push/pull.
 
+Copyright (c) 2026 C.Yang — http://www.yangchenhan.cn
+
 Launch:
     python gui.py
 
@@ -611,6 +613,12 @@ class SshTransferApp:
         scroll = ttk.Scrollbar(self._log_text, command=self._log_text.yview)
         scroll.pack(side='right', fill='y')
         self._log_text.configure(yscrollcommand=scroll.set)
+
+        # Copyright label
+        copyright_label = ttk.Label(
+            f, text='© 2026 C.Yang — http://www.yangchenhan.cn',
+            font=('TkDefaultFont', 8), foreground='gray')
+        copyright_label.pack(side='bottom', anchor='e', pady=(2, 0))
 
     # ===================================================================
     # Helpers

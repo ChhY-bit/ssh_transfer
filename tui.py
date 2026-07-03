@@ -2,6 +2,8 @@
 """
 SSH Transfer TUI — Textual-based terminal interface for SFTP push/pull.
 
+Copyright (c) 2026 C.Yang — http://www.yangchenhan.cn
+
 Designed for headless servers and terminal environments where a GUI is not
 available.  Mirrors the tkinter GUI experience: connection panel, file
 browsers, progress bars, and log output — all inside your terminal.
@@ -681,9 +683,10 @@ class SshTransferTUI(App):
 
     def on_mount(self) -> None:
         self.title = "SSH Transfer"
-        self.sub_title = "SFTP 跨平台数据收发"
+        self.sub_title = "SFTP 跨平台数据收发  |  © 2025 C.Yang"
         log = self.query_one("#log-panel", RichLog)
         log.write("[dim]SSH Transfer TUI 已启动。填写左侧连接信息后点击「连接」。[/dim]")
+        log.write("[dim]Copyright © 2026 C.Yang — http://www.yangchenhan.cn[/dim]")
 
     # -- helpers -------------------------------------------------------------
 
