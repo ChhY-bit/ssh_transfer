@@ -210,6 +210,15 @@ GUI 在 Linux 上启动时会自动检测并注册中文字体。如果界面中
 
 ## 更新日志
 
+### v1.5 (2026-07-03)
+
+- **新增** `bump.py` 独立版本号管理脚本，职责与 `update.py` 分离
+- **修复** `update.py --source` 改用 URL 直接 fetch，不再修改 `origin` 远端，保护本机 push 目标
+- **修复** 跨平台切换（GitHub ↔ Gitee）时 refspec 非快进更新被拒绝的问题
+- **改进** README 新增 `--source` 详细说明及 Gitee 镜像仓库配置指引
+- **改进** DOCUMENT.md 新增 bump.py 模块文档，更新架构图与数据流
+- **修正** 将 `.claude/` 加入 `.gitignore`，消除误提交风险
+
 ### v1.4 (2026-07-03)
 
 - **新增** `update.py --source` 选项，支持从 GitHub / Gitee 切换更新来源（国内服务器可用 Gitee）
