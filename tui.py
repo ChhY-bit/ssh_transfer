@@ -53,6 +53,7 @@ from history import _History
 from sftp_transfer import fmt_eta as _fmt_eta
 from sftp_transfer import fmt_size as _fmt_size
 from sftp_transfer import fmt_speed as _fmt_speed
+from _version import __version__
 from sftp_transfer import pull as sftp_pull
 from sftp_transfer import push as sftp_push
 from ssh_manager import SSHManager
@@ -682,10 +683,10 @@ class SshTransferTUI(App):
         yield Footer()
 
     def on_mount(self) -> None:
-        self.title = "SSH Transfer"
+        self.title = f"SSH Transfer v{__version__}"
         self.sub_title = "SFTP 跨平台数据收发  |  © 2026 C.Yang"
         log = self.query_one("#log-panel", RichLog)
-        log.write("[dim]SSH Transfer TUI 已启动。填写左侧连接信息后点击「连接」。[/dim]")
+        log.write(f"[dim]SSH Transfer v{__version__} TUI 已启动。填写左侧连接信息后点击「连接」。[/dim]")
         log.write("[dim]Copyright © 2026 C.Yang — http://www.yangchenhan.cn[/dim]")
 
     # -- helpers -------------------------------------------------------------

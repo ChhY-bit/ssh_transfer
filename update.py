@@ -46,6 +46,35 @@ _RST = "\033[0m" if sys.stdout.isatty() else ""
 
 
 # ---------------------------------------------------------------------------
+# Version reading (direct file read to survive git pull)
+# ---------------------------------------------------------------------------
+
+def _read_version() -> str:
+    """Read __version__ from _version.py.  Returns '?' on failure."""
+    ver_file = PROJECT_ROOT / "_version.py"
+    if not ver_file.exists():
+        return "?"
+    try:
+        with open(ver_file) as fh:
+            for line in fh:
+                line = line.strip()
+                if line.startswith("__version__"):
+                    parts = line.split("=", 1)
+                    if len(parts) == 2:
+                        return parts[1].strip().strip('"').strip("'")
+    except Exception:
+        pass
+    return "?"
+
+
+def _git_short_hash() -> str:
+    """Return short (7-char) git commit hash, or empty string."""
+    result = _git(["rev-parse", "--short", "HEAD"])
+    return result.stdout.strip() if result.returncode == 0 else ""
+
+
+
+# ---------------------------------------------------------------------------
 # Environment detection
 # ---------------------------------------------------------------------------
 
@@ -152,7 +181,7 @@ def check(branch: str, source: str = DEFAULT_SOURCE) -> int:
 
     behind = _commits_behind(branch)
     if behind == 0:
-        print(f"{_OK}✓ 已是最新版本{_RST}")
+        print(f"{_OK}✓ 已是最新版本 (v{_read_version()}){_RST}")
         return 0
     elif behind > 0:
         commits = _new_commits(branch)
@@ -243,10 +272,10 @@ def apply(branch: str, force: bool, deps: str, source: str = DEFAULT_SOURCE) -> 
 
     behind = _commits_behind(branch)
     if behind == 0:
-        print(f"{_OK}✓ 已是最新版本，无需更新{_RST}")
+        print(f"{_OK}✓ 已是最新版本 (v{_read_version()})，无需更新{_RST}")
         return True
     elif behind < 0:
-        print(f"{_WARN}本地领先远程，跳过拉取{_RST}")
+        print(f"{_WARN}本地领先远程 (v{_read_version()})，跳过拉取{_RST}")
         return True
 
     commits = _new_commits(branch)
@@ -254,7 +283,10 @@ def apply(branch: str, force: bool, deps: str, source: str = DEFAULT_SOURCE) -> 
     for c in commits:
         print(f"    {c}")
 
-    # 2. Handle dirty tree
+    # 2. Snapshot current version
+    old_ver = _read_version()
+
+    # 3. Handle dirty tree
     if not _is_clean():
         if force:
             print(f"{_WARN}⚠ 工作区有未提交的更改，正在丢弃…{_RST}")
@@ -267,7 +299,7 @@ def apply(branch: str, force: bool, deps: str, source: str = DEFAULT_SOURCE) -> 
             )
             return False
 
-    # 3. Pull
+    # 4. Pull
     print(f"{_INFO}⟳ 正在拉取更新…{_RST}")
     pull = _git(["pull", "--ff-only", "origin", branch])
     if pull.returncode != 0:
@@ -279,10 +311,14 @@ def apply(branch: str, force: bool, deps: str, source: str = DEFAULT_SOURCE) -> 
             print(pull.stderr)
             return False
 
-    print(f"{_OK}✓ 已更新到最新版本{_RST}")
+    new_ver = _read_version()
+    if old_ver != "?" and new_ver != "?" and old_ver != new_ver:
+        print(f"{_OK}✓ 已更新: {_BOLD}v{old_ver} → v{new_ver}{_RST}")
+    else:
+        print(f"{_OK}✓ 已更新到最新版本{_RST}")
     print(pull.stdout.strip() if pull.stdout.strip() else "  (fast-forward)")
 
-    # 4. Dependencies
+    # 5. Dependencies
     if deps:
         _update_deps(deps)
 
@@ -337,6 +373,9 @@ def main() -> None:
     # -- preamble ------------------------------------------------------------
 
     print(f"{_BOLD}SSH Transfer — 自动更新{_RST}")
+    sha = _git_short_hash()
+    sha_str = f" ({sha})" if sha else ""
+    print(f"  当前版本: v{_read_version()}{sha_str}")
     print(f"  项目路径: {PROJECT_ROOT}")
 
     if not _is_git_repo():

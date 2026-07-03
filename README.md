@@ -120,18 +120,17 @@ python3 tui.py
 
 ### 自动更新（推荐）
 
-在服务器上部署后，使用内置的 `update.py` 一键同步 GitHub 最新版：
+在服务器上部署后，使用内置的 `update.py` 一键同步最新版（默认从 GitHub，也可从 Gitee）：
 
 ```bash
-python update.py              # 拉取并应用最新版本
-python update.py --check      # 仅检查是否有更新
-python update.py --deps       # 更新后同步更新 pip 依赖
-python update.py --force      # 丢弃本地修改后强制更新
+python update.py                  # 拉取并应用最新版本
+python update.py --check          # 仅检查是否有更新
+python update.py --source gitee   # 从 Gitee 拉取（国内服务器推荐）
+python update.py --deps           # 更新后同步更新 pip 依赖
+python update.py --force          # 丢弃本地修改后强制更新
 ```
 
-> 更新前会自动检查工作区是否干净，有未提交的修改时会拒绝更新（除非 `--force`）。环境检测与更新流程详见 [DOCUMENT.md § update.py](DOCUMENT.md#update.py--自动更新脚本)。
-
----
+> 更新前会自动检查工作区是否干净，有未提交的修改时会拒绝更新（除非 `--force`）。更新成功后会显示版本变化（如 `v1.3 → v1.4`）。环境检测与更新流程详见 [DOCUMENT.md § update.py](DOCUMENT.md#update.py--自动更新脚本)。
 
 ---
 
@@ -140,10 +139,12 @@ python update.py --force      # 丢弃本地修改后强制更新
 ```
 ssh_transfer/
 ├── gui.py               # tkinter GUI 图形界面
-├── tui.py               # Textual TUI 终端界面（新增）
+├── tui.py               # Textual TUI 终端界面
 ├── sftp_transfer.py     # SFTP 传输核心
 ├── ssh_manager.py       # SSH 连接管理
 ├── history.py           # 连接历史缓存（GUI / TUI 共享）
+├── update.py            # 自动更新脚本（GitHub / Gitee）
+├── _version.py          # 统一版本号
 ├── server.py            # HTTP 服务端（高级模式）
 ├── client.py            # HTTP 客户端（高级模式）
 ├── assets/fonts/        # 捆绑的 CJK 字体
@@ -206,6 +207,14 @@ GUI 在 Linux 上启动时会自动检测并注册中文字体。如果界面中
 
 ## 更新日志
 
+### v1.4 (2026-07-03)
+
+- **新增** `update.py --source` 选项，支持从 GitHub / Gitee 切换更新来源（国内服务器可用 Gitee）
+- **新增** 版本号显示：GUI 标题栏、TUI 标题栏与启动日志中显示当前版本
+- **新增** `update.py` 更新时展示版本变化（如 `v1.3 → v1.4`）
+- **新增** GUI / TUI 界面版权信息（作者 C.Yang，主页 http://www.yangchenhan.cn）
+- **新增** `_version.py` 统一版本号管理
+
 ### v1.3 (2026-07-02)
 
 - **修复** 目录传输进度追踪 Bug：小于 32KB 的文件在进度条中会被遗漏计数
@@ -248,5 +257,7 @@ GUI 在 Linux 上启动时会自动检测并注册中文字体。如果界面中
 ---
 
 ## 许可
+
+Copyright © 2026 [C.Yang](http://www.yangchenhan.cn)
 
 捆绑字体 DroidSansFallbackFull.ttf 基于 [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0)。

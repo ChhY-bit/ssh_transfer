@@ -30,6 +30,7 @@ if _HERE not in sys.path:
 from sftp_transfer import push as sftp_push, pull as sftp_pull
 from sftp_transfer import fmt_size, fmt_speed, fmt_eta
 from ssh_manager import SSHManager
+from _version import __version__
 
 
 class InterruptedError(Exception):
@@ -493,7 +494,7 @@ class SshTransferApp:
     def __init__(self, root):
         self.root = root
         _setup_tk_fonts(root)
-        self.root.title('SSH Transfer — SFTP 跨平台数据收发')
+        self.root.title(f'SSH Transfer v{__version__} — SFTP 跨平台数据收发')
         self.root.geometry('720x580')
         self.root.minsize(600, 500)
 
@@ -616,7 +617,7 @@ class SshTransferApp:
 
         # Copyright label
         copyright_label = ttk.Label(
-            f, text='© 2026 C.Yang — http://www.yangchenhan.cn',
+            f, text=f'v{__version__}  |  © 2026 C.Yang — http://www.yangchenhan.cn',
             font=('TkDefaultFont', 8), foreground='gray')
         copyright_label.pack(side='bottom', anchor='e', pady=(2, 0))
 

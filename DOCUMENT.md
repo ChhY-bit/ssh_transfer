@@ -14,6 +14,7 @@
   - [ssh_manager.py — SSH 连接管理](#ssh_manager.py--ssh-连接管理)
   - [history.py — 连接历史缓存](#history.py--连接历史缓存)
   - [update.py — 自动更新脚本](#update.py--自动更新脚本)
+  - [bump.py — 版本号管理](#bump.py--版本号管理)
   - [server.py — HTTP 服务端](#server.py--http-服务端)
   - [client.py — HTTP 客户端](#client.py--http-客户端)
 - [关键设计决策](#关键设计决策)
@@ -60,8 +61,9 @@
 │        └── ssh_manager ───────┘                          │
 │                                                          │
 │  ┌──────────────────────────────────────────┐           │
-│  │  共享模块:  history.py   update.py        │           │
-│  │  连接历史 (GUI/TUI)   自动同步 GitHub     │           │
+│  │  共享模块:  history.py   update.py   bump.py │           │
+│  │  连接历史 (GUI/TUI)   自动更新     版本号管理 │           │
+│  │  _version.py  版本号统一管理                  │           │
 │  └──────────────────────────────────────────┘           │
 └──────────────────────────────────────────────────────────┘
 ```
@@ -281,28 +283,45 @@ class _History:
 
 ### update.py — 自动更新脚本
 
-**职责**：在服务器上从 GitHub 一键同步项目最新版本和依赖，无需手动 git pull + pip install。
+**职责**：在服务器上从 GitHub / Gitee 一键同步项目最新版本和依赖，无需手动 git pull + pip install。
 
 **用法**：
 
 ```bash
-python update.py                # 更新到最新版 (要求工作区干净)
-python update.py --check        # 仅检查新提交，不修改文件
-python update.py --force        # 丢弃本地修改后强制更新
-python update.py --deps         # 更新后自动同步依赖 (auto-detect)
-python update.py --deps conda   # 强制使用 conda env update
-python update.py --deps pip     # 强制使用 pip install
-python update.py --branch dev   # 跟踪其他分支
+python update.py                  # 更新到最新版 (要求工作区干净，默认 GitHub)
+python update.py --check          # 仅检查新提交，不修改文件
+python update.py --source gitee   # 从 Gitee 拉取更新（国内服务器推荐）
+python update.py --source github  # 显式从 GitHub 拉取
+python update.py --force          # 丢弃本地修改后强制更新
+python update.py --deps           # 更新后自动同步依赖 (auto-detect)
+python update.py --deps conda     # 强制使用 conda env update
+python update.py --deps pip       # 强制使用 pip install
+python update.py --branch dev     # 跟踪其他分支
 ```
+
+**更新来源切换**：
+
+`--source` 选项支持 `github`（默认）和 `gitee`，运行时会自动将 `origin` 远端 URL 指向对应平台：
+- GitHub: `https://github.com/ChhY-bit/ssh_transfer.git`
+- Gitee: `https://gitee.com/ChhY-bit/ssh_transfer.git`
+
+用户可在 Gitee 上创建镜像仓库自动同步 GitHub，之后服务器端使用 `--source gitee` 即可绕过 GitHub 的网络限制。
+
+**版本显示**：
+
+启动时显示当前版本号，更新成功后展示版本变化（如 `✓ 已更新: v1.3 → v1.4`）。
+版本号统一存储在 `_version.py` 中，GUI、TUI、update.py 均从此读取。
 
 **更新流程**：
 
 ```
+git remote set-url origin <url>   # 根据 --source 切换远端
 git fetch origin <branch>
-  ├─ 已是最新 → 结束 (exit 0)
-  ├─ 有新提交 → 显示提交列表
+  ├─ 已是最新 (vX.Y) → 结束 (exit 0)
+  ├─ 有新提交 → 记录旧版本 → 显示提交列表
   │     ├─ 工作区干净 → git pull --ff-only
-  │     │     ├─ 成功 → (可选) 更新依赖
+  │     │     ├─ 成功 → 读取新版本 → 显示 vX.Y → vZ.W
+  │     │     │   └─ (可选) 更新依赖
   │     │     └─ 失败 → git pull --rebase (回退)
   │     └─ 工作区有修改
   │           ├─ --force → git reset --hard + git clean -fd
@@ -320,7 +339,36 @@ git fetch origin <branch>
   └─ 都不存在 → 警告后尝试 pip install
 ```
 
-**实现位置**：`update.py`（约 350 行），纯 stdlib，无外部依赖。
+**实现位置**：`update.py`（约 390 行），纯 stdlib，无外部依赖。
+
+---
+
+### bump.py — 版本号管理
+
+**职责**：更新 `_version.py` 中的版本号并自动 `git add`。与 `update.py` 职责分离 —— bump 改版本号，update 拉代码。
+
+**用法**：
+
+```bash
+python bump.py           # 查看当前版本
+python bump.py --check   # 仅输出版本号（脚本调用）
+python bump.py 1.5       # 将版本号更新为 1.5
+```
+
+**典型发布流程**：
+
+```bash
+# 1. 日常开发：正常 commit + push，不改版本号
+git commit -m "feat: xxx"
+git push
+
+# 2. 准备发新版时，bump 版本号
+python bump.py 1.5
+git commit -m "chore: bump version to v1.5"
+git push
+```
+
+`_version.py` 被 `gui.py`、`tui.py`、`update.py` 共同读取，改一处即全局生效。
 
 ---
 
