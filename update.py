@@ -173,7 +173,8 @@ def check(branch: str, source: str = DEFAULT_SOURCE) -> int:
     """
     url = _source_url(source)
     print(f"{_INFO}⟳ 正在从 {source} ({url}) 获取更新…{_RST}")
-    result = _git(["fetch", "origin", branch])
+    # Fetch by URL directly — never change origin, so user's push target is untouched
+    result = _git(["fetch", url, f"{branch}:refs/remotes/origin/{branch}"])
     if result.returncode != 0:
         print(f"{_ERR}✗ 无法连接 ({source}){_RST}")
         print(result.stderr)
@@ -260,12 +261,9 @@ def apply(branch: str, force: bool, deps: str, source: str = DEFAULT_SOURCE) -> 
     """Fetch and pull the latest commits.  Return True on success."""
     url = _source_url(source)
 
-    # 0. Ensure origin points to the right source
-    _git(["remote", "set-url", "origin", url])
-
-    # 1. Fetch
+    # 1. Fetch by URL directly — never change origin, so user's push target is untouched
     print(f"{_INFO}⟳ 获取远程更新 ({source})…{_RST}")
-    result = _git(["fetch", "origin", branch])
+    result = _git(["fetch", url, f"{branch}:refs/remotes/origin/{branch}"])
     if result.returncode != 0:
         print(f"{_ERR}✗ 无法连接 ({source}){_RST}")
         return False
@@ -299,16 +297,16 @@ def apply(branch: str, force: bool, deps: str, source: str = DEFAULT_SOURCE) -> 
             )
             return False
 
-    # 4. Pull
-    print(f"{_INFO}⟳ 正在拉取更新…{_RST}")
-    pull = _git(["pull", "--ff-only", "origin", branch])
-    if pull.returncode != 0:
+    # 4. Merge (already fetched, no network needed)
+    print(f"{_INFO}⟳ 正在合并更新…{_RST}")
+    merge = _git(["merge", "--ff-only", f"origin/{branch}"])
+    if merge.returncode != 0:
         # Try rebase as fallback
         print(f"{_WARN}fast-forward 失败，尝试 rebase…{_RST}")
-        pull = _git(["pull", "--rebase", "origin", branch])
-        if pull.returncode != 0:
-            print(f"{_ERR}✗ 拉取失败:{_RST}")
-            print(pull.stderr)
+        merge = _git(["rebase", f"origin/{branch}"])
+        if merge.returncode != 0:
+            print(f"{_ERR}✗ 合并失败:{_RST}")
+            print(merge.stderr)
             return False
 
     new_ver = _read_version()
@@ -316,7 +314,7 @@ def apply(branch: str, force: bool, deps: str, source: str = DEFAULT_SOURCE) -> 
         print(f"{_OK}✓ 已更新: {_BOLD}v{old_ver} → v{new_ver}{_RST}")
     else:
         print(f"{_OK}✓ 已更新到最新版本{_RST}")
-    print(pull.stdout.strip() if pull.stdout.strip() else "  (fast-forward)")
+    print(merge.stdout.strip() if merge.stdout.strip() else "  (fast-forward)")
 
     # 5. Dependencies
     if deps:

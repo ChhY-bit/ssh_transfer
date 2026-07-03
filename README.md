@@ -120,15 +120,18 @@ python3 tui.py
 
 ### 自动更新（推荐）
 
-在服务器上部署后，使用内置的 `update.py` 一键同步最新版（默认从 GitHub，也可从 Gitee）：
+在服务器上部署后，使用内置的 `update.py` 一键同步最新版：
 
 ```bash
-python update.py                  # 拉取并应用最新版本
+python update.py                  # 拉取并应用最新版本（默认 GitHub）
 python update.py --check          # 仅检查是否有更新
 python update.py --source gitee   # 从 Gitee 拉取（国内服务器推荐）
+python update.py --source github  # 显式从 GitHub 拉取
 python update.py --deps           # 更新后同步更新 pip 依赖
 python update.py --force          # 丢弃本地修改后强制更新
 ```
+
+**`--source` 说明**：支持 `github`（默认）和 `gitee`。国内服务器连 GitHub 不稳定时，可在 [Gitee](https://gitee.com) 创建一个从 `github.com/ChhY-bit/ssh_transfer` 导入的公开镜像仓库，之后用 `--source gitee` 即可提速。脚本直接通过 URL fetch，**不修改 git remote**，不影响本机 push。
 
 > 更新前会自动检查工作区是否干净，有未提交的修改时会拒绝更新（除非 `--force`）。更新成功后会显示版本变化（如 `v1.3 → v1.4`）。环境检测与更新流程详见 [DOCUMENT.md § update.py](DOCUMENT.md#update.py--自动更新脚本)。
 

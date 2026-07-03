@@ -301,7 +301,7 @@ python update.py --branch dev     # 跟踪其他分支
 
 **更新来源切换**：
 
-`--source` 选项支持 `github`（默认）和 `gitee`，运行时会自动将 `origin` 远端 URL 指向对应平台：
+`--source` 选项支持 `github`（默认）和 `gitee`。脚本直接通过 URL fetch，**不修改 `origin` 远端配置**，因此本机的 `git push` 目标不会受影响：
 - GitHub: `https://github.com/ChhY-bit/ssh_transfer.git`
 - Gitee: `https://gitee.com/ChhY-bit/ssh_transfer.git`
 
@@ -315,14 +315,13 @@ python update.py --branch dev     # 跟踪其他分支
 **更新流程**：
 
 ```
-git remote set-url origin <url>   # 根据 --source 切换远端
-git fetch origin <branch>
+git fetch <url> <branch>:refs/remotes/origin/<branch>   # 直接 fetch URL，不动 origin
   ├─ 已是最新 (vX.Y) → 结束 (exit 0)
   ├─ 有新提交 → 记录旧版本 → 显示提交列表
-  │     ├─ 工作区干净 → git pull --ff-only
+  │     ├─ 工作区干净 → git merge --ff-only origin/<branch>
   │     │     ├─ 成功 → 读取新版本 → 显示 vX.Y → vZ.W
   │     │     │   └─ (可选) 更新依赖
-  │     │     └─ 失败 → git pull --rebase (回退)
+  │     │     └─ 失败 → git rebase origin/<branch> (回退)
   │     └─ 工作区有修改
   │           ├─ --force → git reset --hard + git clean -fd
   │           └─ 否则 → 报错退出
