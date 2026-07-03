@@ -174,7 +174,8 @@ def check(branch: str, source: str = DEFAULT_SOURCE) -> int:
     url = _source_url(source)
     print(f"{_INFO}⟳ 正在从 {source} ({url}) 获取更新…{_RST}")
     # Fetch by URL directly — never change origin, so user's push target is untouched
-    result = _git(["fetch", url, f"{branch}:refs/remotes/origin/{branch}"])
+    # "+" prefix allows non-fast-forward when switching between GitHub/Gitee
+    result = _git(["fetch", url, f"+{branch}:refs/remotes/origin/{branch}"])
     if result.returncode != 0:
         print(f"{_ERR}✗ 无法连接 ({source}){_RST}")
         print(result.stderr)
