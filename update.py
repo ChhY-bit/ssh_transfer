@@ -6,13 +6,14 @@ Fetches the latest version of the project from GitHub and applies it.
 Useful for headless servers where pulling manually is inconvenient.
 
 Usage:
-    python update.py                # update to latest (requires clean tree)
-    python update.py --check        # only check for new commits, don't apply
-    python update.py --force        # discard local changes before updating
-    python update.py --deps         # auto-detect env & update dependencies
-    python update.py --deps pip     # force pip install -r requirements.txt
-    python update.py --deps conda   # force conda env update
-    python update.py --branch dev   # track a different branch (default: main)
+    python update.py                  # update to latest (requires clean tree)
+    python update.py --check          # only check for new commits, don't apply
+    python update.py --force          # discard local changes before updating
+    python update.py --deps           # auto-detect env & update dependencies
+    python update.py --deps pip       # force pip install -r requirements.txt
+    python update.py --deps conda     # force conda env update
+    python update.py --branch dev     # track a different branch (default: main)
+    python update.py --source gitee   # fetch from Gitee instead of GitHub
 
 The script must be run from inside the project directory (where .git lives).
 """
@@ -30,8 +31,10 @@ from pathlib import Path
 # Constants
 # ---------------------------------------------------------------------------
 
-REPO_URL = "https://github.com/ChhY-bit/ssh_transfer.git"
+GITHUB_URL = "https://github.com/ChhY-bit/ssh_transfer.git"
+GITEE_URL = "https://gitee.com/ChhY-bit/ssh_transfer.git"
 DEFAULT_BRANCH = "main"
+DEFAULT_SOURCE = "github"
 
 # ANSI colours (None if stdout is not a tty)
 _INFO = "\033[1;36m" if sys.stdout.isatty() else ""
@@ -129,15 +132,21 @@ def _new_commits(branch: str) -> list[str]:
 # Core logic
 # ---------------------------------------------------------------------------
 
-def check(branch: str) -> int:
+def _source_url(source: str) -> str:
+    """Return the remote URL for the given source name."""
+    return GITEE_URL if source == "gitee" else GITHUB_URL
+
+
+def check(branch: str, source: str = DEFAULT_SOURCE) -> int:
     """Fetch from remote and report how many new commits are available.
 
     Returns the number of commits behind (0 = up-to-date).
     """
-    print(f"{_INFO}⟳ 正在从 {REPO_URL} 获取更新…{_RST}")
+    url = _source_url(source)
+    print(f"{_INFO}⟳ 正在从 {source} ({url}) 获取更新…{_RST}")
     result = _git(["fetch", "origin", branch])
     if result.returncode != 0:
-        print(f"{_ERR}✗ 无法连接到 GitHub{_RST}")
+        print(f"{_ERR}✗ 无法连接 ({source}){_RST}")
         print(result.stderr)
         return -1
 
@@ -218,13 +227,18 @@ def _pip_install() -> bool:
         return False
 
 
-def apply(branch: str, force: bool, deps: str) -> bool:
+def apply(branch: str, force: bool, deps: str, source: str = DEFAULT_SOURCE) -> bool:
     """Fetch and pull the latest commits.  Return True on success."""
+    url = _source_url(source)
+
+    # 0. Ensure origin points to the right source
+    _git(["remote", "set-url", "origin", url])
+
     # 1. Fetch
-    print(f"{_INFO}⟳ 获取远程更新…{_RST}")
+    print(f"{_INFO}⟳ 获取远程更新 ({source})…{_RST}")
     result = _git(["fetch", "origin", branch])
     if result.returncode != 0:
-        print(f"{_ERR}✗ 无法连接到 GitHub{_RST}")
+        print(f"{_ERR}✗ 无法连接 ({source}){_RST}")
         return False
 
     behind = _commits_behind(branch)
@@ -284,15 +298,16 @@ def main() -> None:
     PROJECT_ROOT = Path(__file__).resolve().parent
 
     parser = argparse.ArgumentParser(
-        description="SSH Transfer — 从 GitHub 自动更新到最新版本",
+        description="SSH Transfer — 自动更新到最新版本（GitHub / Gitee）",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=textwrap.dedent(f"""\
             示例:
-              {sys.argv[0]}                  # 更新到最新版
-              {sys.argv[0]} --check          # 仅检查是否有更新
-              {sys.argv[0]} --force          # 丢弃本地修改后更新
-              {sys.argv[0]} --deps           # 更新后同步安装依赖
-              {sys.argv[0]} --branch dev     # 使用 dev 分支
+              {sys.argv[0]}                        # 从 GitHub 更新
+              {sys.argv[0]} --source gitee          # 从 Gitee 更新
+              {sys.argv[0]} --check                 # 仅检查是否有更新
+              {sys.argv[0]} --force                 # 丢弃本地修改后更新
+              {sys.argv[0]} --deps                  # 更新后同步安装依赖
+              {sys.argv[0]} --branch dev            # 使用 dev 分支
         """),
     )
     parser.add_argument(
@@ -312,6 +327,11 @@ def main() -> None:
         "--branch", default=DEFAULT_BRANCH,
         help=f"跟踪的分支名（默认: {DEFAULT_BRANCH}）",
     )
+    parser.add_argument(
+        "--source", default=DEFAULT_SOURCE,
+        choices=["github", "gitee"],
+        help=f"更新来源（默认: {DEFAULT_SOURCE}，可选: github / gitee）",
+    )
     args = parser.parse_args()
 
     # -- preamble ------------------------------------------------------------
@@ -321,10 +341,11 @@ def main() -> None:
 
     if not _is_git_repo():
         print(f"{_ERR}✗ 当前目录不是 Git 仓库{_RST}")
-        print(f"  请先克隆项目: git clone {REPO_URL}")
+        print(f"  请先克隆项目: git clone {GITHUB_URL}")
         sys.exit(1)
 
     branch = args.branch
+    source = args.source
     current = _current_branch()
     if current and current != branch:
         print(f"{_WARN}⚠ 当前在 '{current}' 分支，将跟踪 '{branch}'{_RST}")
@@ -332,12 +353,12 @@ def main() -> None:
     # -- action --------------------------------------------------------------
 
     if args.check:
-        behind = check(branch)
+        behind = check(branch, source=source)
         if behind > 0:
             print(f"\n{_INFO}运行 {_BOLD}python update.py{_INFO} 来应用更新。{_RST}")
         sys.exit(0 if behind >= 0 else 1)
     else:
-        ok = apply(branch, force=args.force, deps=args.deps)
+        ok = apply(branch, force=args.force, deps=args.deps, source=source)
         if ok:
             print(f"\n{_OK}{_BOLD}✓ 更新完成！{_RST}")
             print(f"  启动: {_BOLD}python tui.py{_RST} (终端) 或 {_BOLD}python gui.py{_RST} (图形)")
