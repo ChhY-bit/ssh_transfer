@@ -683,7 +683,7 @@ class SshTransferTUI(App):
 
     def on_mount(self) -> None:
         self.title = "SSH Transfer"
-        self.sub_title = "SFTP 跨平台数据收发  |  © 2025 C.Yang"
+        self.sub_title = "SFTP 跨平台数据收发  |  © 2026 C.Yang"
         log = self.query_one("#log-panel", RichLog)
         log.write("[dim]SSH Transfer TUI 已启动。填写左侧连接信息后点击「连接」。[/dim]")
         log.write("[dim]Copyright © 2026 C.Yang — http://www.yangchenhan.cn[/dim]")
