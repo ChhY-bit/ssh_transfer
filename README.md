@@ -210,6 +210,13 @@ GUI 在 Linux 上启动时会自动检测并注册中文字体。如果界面中
 
 ## 更新日志
 
+### v1.7 (2026-07-07)
+
+- **修复** TUI 文件浏览器点击"上一级"或"刷新"时崩溃（`DuplicateIds`）
+  - 根因：Textual 8.x `Widget.remove()` 异步调度 DOM 移除，同步紧跟 `mount()` 导致旧 widget 未移除时已挂载同 ID 新 widget
+  - 本地浏览器：改为更新 `DirectoryTree.path` reactive 属性，触发 `watch_path` → `reload()` 自动刷新
+  - 远程浏览器：改为 `Tree.clear()` + `set_label()` 就地重置，消除 remove/mount 竞态
+
 ### v1.6 (2026-07-03)
 
 - **修复** TUI RadioButton 圆形指示器被 `▐▌` 方块字符和灰色面板背景包裹，视觉上像"镂空方框"

@@ -147,20 +147,14 @@ class LocalFileBrowser(ModalScreen[str | None]):
         return f"[bold]本地文件浏览[/bold]  —  [dim]{self._current}[/dim]"
 
     def _navigate_to(self, new_path: str) -> None:
-        """Replace the DirectoryTree in-place to show *new_path*."""
+        """Navigate the existing DirectoryTree to show *new_path*."""
         abs_path = os.path.abspath(os.path.expanduser(new_path))
         self._current = abs_path
-        # Update title bar
         self.query_one("#browser-title", Label).update(self._make_title())
-        # Remove old tree, mount new one
-        old = self.query_one("#dir-tree", DirectoryTree)
-        old.remove()
-        new_tree = DirectoryTree(Path(abs_path))
-        new_tree.id = "dir-tree"
-        inner = self.query_one("#browser-inner", Vertical)
-        inner.mount(new_tree, before="#browser-buttons")
-        new_tree.root.expand()
-        new_tree.focus()
+        tree = self.query_one("#dir-tree", DirectoryTree)
+        tree.path = Path(abs_path)  # reactive – triggers watch_path → reload()
+        tree.root.expand()
+        tree.focus()
 
     def action_go_parent(self) -> None:
         self._go_parent()
@@ -269,15 +263,13 @@ class RemoteFileBrowser(ModalScreen[str | None]):
         self._current = resolved
         # Update title
         self.query_one("#browser-title", Label).update(self._make_title(resolved))
-        # Remove old tree, mount new one
-        old = self.query_one("#remote-tree", Tree)
-        old.remove()
-        new_tree = Tree(resolved, id="remote-tree")
-        new_tree.root.expand()
-        inner = self.query_one("#browser-inner", Vertical)
-        inner.mount(new_tree, before="#browser-buttons")
-        self._populate_node(new_tree.root)
-        new_tree.focus()
+        # Reset existing tree in-place to the new path
+        tree = self.query_one("#remote-tree", Tree)
+        tree.clear()
+        tree.root.set_label(resolved)
+        tree.root.expand()
+        self._populate_node(tree.root)
+        tree.focus()
 
     def action_go_parent(self) -> None:
         self._go_parent()
