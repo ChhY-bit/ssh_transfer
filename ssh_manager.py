@@ -42,6 +42,7 @@ class SSHManager:
         self._client = None
         self._sftp = None
         self._server_pid = None
+        self._sftp_lock = threading.Lock()  # protect SFTP operations across threads
 
     # -- connection -------------------------------------------------------
 
@@ -76,8 +77,22 @@ class SSHManager:
 
     @property
     def sftp(self):
-        """Return the underlying paramiko SFTPClient for direct transfer operations."""
+        """Return the underlying paramiko SFTPClient, auto-reconnecting if needed."""
+        if self._sftp is None and self._client is not None:
+            try:
+                self._sftp = self._client.open_sftp()
+            except Exception:
+                pass
         return self._sftp
+
+    def close_sftp(self):
+        """Force-close the SFTP session to interrupt any ongoing transfer."""
+        if self._sftp:
+            try:
+                self._sftp.close()
+            except Exception:
+                pass
+            self._sftp = None
 
     # -- SSH port forwarding (tunnel) ------------------------------------
 
@@ -324,55 +339,97 @@ class SSHManager:
 
     # -- remote helpers ---------------------------------------------------
 
+    def _get_sftp(self):
+        """Return the SFTP client via the auto-reconnecting property, or None."""
+        return self.sftp
+
     def list_remote_dir(self, path='.'):
         """Return list of {name, is_dir, size} dicts for a remote directory."""
-        if not self._sftp:
+        sftp = self._get_sftp()
+        if not sftp:
             raise RuntimeError('Not connected.')
-        items = []
-        for attr in self._sftp.listdir_attr(path):
-            items.append({
-                'name': attr.filename,
-                'is_dir': attr.st_mode & 0o40000 != 0,  # S_IFDIR
-                'size': attr.st_size,
-            })
-        return items
+        with self._sftp_lock:
+            items = []
+            for attr in sftp.listdir_attr(path):
+                items.append({
+                    'name': attr.filename,
+                    'is_dir': attr.st_mode & 0o40000 != 0,  # S_IFDIR
+                    'size': attr.st_size,
+                })
+            return items
 
     def resolve_path(self, path):
         """Convert a relative remote path to an absolute one via SFTP."""
-        if not self._sftp:
+        sftp = self._get_sftp()
+        if not sftp:
             return path
         try:
-            return self._sftp.normalize(path)
+            return sftp.normalize(path)
         except Exception:
             return path
 
     def is_remote_dir(self, path):
         """Return True if the remote path is a directory."""
-        if not self._sftp:
+        sftp = self._get_sftp()
+        if not sftp:
             return False
         try:
-            return self._sftp.stat(path).st_mode & 0o40000 != 0
+            return sftp.stat(path).st_mode & 0o40000 != 0
         except FileNotFoundError:
             return False
 
     def remote_file_exists(self, path):
         """Check if a path exists on the remote host."""
-        if not self._sftp:
+        sftp = self._get_sftp()
+        if not sftp:
             return False
         try:
-            self._sftp.stat(path)
+            sftp.stat(path)
             return True
         except FileNotFoundError:
             return False
 
     def remote_file_size(self, path):
         """Return the size of a remote file, or 0 if not found."""
-        if not self._sftp:
+        sftp = self._get_sftp()
+        if not sftp:
             return 0
         try:
-            return self._sftp.stat(path).st_size
+            return sftp.stat(path).st_size
         except FileNotFoundError:
             return 0
+
+    def delete_remote(self, path):
+        """Recursively delete a remote file or directory (best-effort)."""
+        sftp = self._get_sftp()
+        if not sftp:
+            return
+        with self._sftp_lock:
+            try:
+                attr = sftp.stat(path)
+                if attr.st_mode & 0o40000:  # directory
+                    for item in sftp.listdir_attr(path):
+                        child = f"{path}/{item.filename}".replace("//", "/")
+                        self._delete_remote_locked(sftp, child)
+                    sftp.rmdir(path)
+                else:
+                    sftp.remove(path)
+            except Exception:
+                pass
+
+    def _delete_remote_locked(self, sftp, path):
+        """Recursive delete helper — caller must hold _sftp_lock."""
+        try:
+            attr = sftp.stat(path)
+            if attr.st_mode & 0o40000:
+                for item in sftp.listdir_attr(path):
+                    child = f"{path}/{item.filename}".replace("//", "/")
+                    self._delete_remote_locked(sftp, child)
+                sftp.rmdir(path)
+            else:
+                sftp.remove(path)
+        except Exception:
+            pass
 
 
 # ---------------------------------------------------------------------------

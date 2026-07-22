@@ -19,6 +19,7 @@ Requires:
 from __future__ import annotations
 
 import os
+import shutil
 import sys
 import threading
 import time
@@ -344,7 +345,7 @@ class RemoteFileBrowser(ModalScreen[str | None]):
         )
 
         for d in dirs:
-            child = node.add(f"📁 {d['name']}", expand=True, data=d["name"])
+            child = node.add(f"📁 {d['name']}", expand=False, data=d["name"])
             child.add_leaf("…", data=None)  # placeholder for lazy loading
 
         for f in files:
@@ -481,8 +482,8 @@ class TransferPanel(ScrollableContainer):
     def compose(self) -> ComposeResult:
         yield Label("[bold]传输[/bold]", id="section-title")
         with RadioSet(id="direction"):
-            yield RadioButton("推送 (本机 → 服务器)", value=True)
-            yield RadioButton("拉取 (服务器 → 本机)", value=False)
+            yield RadioButton("推送 (本机 → 服务器)", id="radio-push", value=True)
+            yield RadioButton("拉取 (服务器 → 本机)", id="radio-pull")
         yield Label("本地路径", classes="field-label")
         with Horizontal(classes="path-row"):
             yield Input(placeholder="/home/user/myfile", id="local-path")
@@ -802,6 +803,9 @@ class SshTransferTUI(App):
     # -- local / remote browsing ---------------------------------------------
 
     def _on_browse_local(self) -> None:
+        if self._transfer_active:
+            self._log_line("传输进行中，请等待完成后再浏览", style="yellow")
+            return
         local_val = self._transfer.query_one("#local-path", Input).value.strip()
         self.push_screen(LocalFileBrowser(local_val), self._on_local_selected)
 
@@ -810,6 +814,9 @@ class SshTransferTUI(App):
             self._transfer.query_one("#local-path", Input).value = result
 
     def _on_browse_remote(self) -> None:
+        if self._transfer_active:
+            self._log_line("传输进行中，请等待完成后再浏览", style="yellow")
+            return
         if not self._ssh or not self._ssh.is_connected:
             self._log_line("请先建立 SSH 连接", style="yellow")
             return
@@ -843,7 +850,10 @@ class SshTransferTUI(App):
             return
 
         radiost = self._transfer.query_one("#direction", RadioSet)
-        is_push = radiost.pressed_button.value if radiost.pressed_button else True
+        pressed = radiost.pressed_button
+        # RadioButton.value is the toggle state (always True when pressed),
+        # so we distinguish buttons by their id.
+        is_push = (pressed.id == "radio-push") if pressed else True
         verb = "推送" if is_push else "拉取"
         arrow = "→" if is_push else "←"
 
@@ -861,6 +871,23 @@ class SshTransferTUI(App):
             )
 
         def _run():
+            # Compute actual target paths (inside worker thread — SFTP
+            # stat() calls must never run on the main UI thread).
+            if is_push:
+                if self._ssh.is_remote_dir(remote):
+                    _push_target = remote.rstrip('/') + '/' + os.path.basename(local)
+                else:
+                    _push_target = remote
+                _source_is_dir = os.path.isdir(local)
+                _pull_target = None
+            else:
+                if os.path.isdir(local):
+                    _pull_target = os.path.join(local, os.path.basename(remote.rstrip('/')))
+                else:
+                    _pull_target = local
+                _source_is_dir = self._ssh.is_remote_dir(remote)
+                _push_target = None
+
             try:
                 if is_push:
                     sftp_push(sftp, local, remote, on_progress=_progress)
@@ -871,7 +898,15 @@ class SshTransferTUI(App):
                 else:
                     self.post_message(TransferComplete(False, "用户取消"))
             except InterruptedError:
+                self._cleanup_partial(is_push, _push_target, _pull_target, _source_is_dir)
                 self.post_message(TransferComplete(False, "用户取消"))
+            except (IOError, OSError) as exc:
+                # SFTP session may have been force-closed by cancel
+                if self._cancel_flag.is_set():
+                    self._cleanup_partial(is_push, _push_target, _pull_target, _source_is_dir)
+                    self.post_message(TransferComplete(False, "用户取消"))
+                else:
+                    self.post_message(TransferComplete(False, str(exc)))
             except Exception as exc:
                 self.post_message(TransferComplete(False, str(exc)))
 
@@ -880,10 +915,32 @@ class SshTransferTUI(App):
     def _on_cancel(self) -> None:
         self._log_line("正在取消…", style="yellow")
         self._cancel_flag.set()
+        # Force-close the SFTP session to interrupt blocking network I/O.
+        # The transfer thread will receive an IOError which we handle
+        # in _run() alongside InterruptedError.
+        if self._ssh is not None:
+            self._ssh.close_sftp()
 
     def _set_transfer_ui(self, active: bool) -> None:
         self._transfer.query_one("#btn-start", Button).disabled = active
         self._transfer.query_one("#btn-cancel", Button).disabled = not active
+        self._transfer.query_one("#btn-browse-local", Button).disabled = active
+        self._transfer.query_one("#btn-browse-remote", Button).disabled = active
+
+    def _cleanup_partial(self, is_push, push_target, pull_target, source_is_dir):
+        """Best-effort removal of partially transferred files after cancel."""
+        if is_push and push_target:
+            self._log_line("正在清除未完成的远程文件 …", style="yellow")
+            self._ssh.delete_remote(push_target)
+        elif not is_push and pull_target and os.path.exists(pull_target):
+            self._log_line("正在清除未完成的本地文件 …", style="yellow")
+            try:
+                if source_is_dir:
+                    shutil.rmtree(pull_target)
+                else:
+                    os.remove(pull_target)
+            except OSError:
+                pass
 
     def on_progress_update(self, event: ProgressUpdate) -> None:
         bar = self._transfer.query_one("#progress-bar", ProgressBar)
